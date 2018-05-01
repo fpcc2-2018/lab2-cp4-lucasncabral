@@ -20,12 +20,15 @@ searches = events %>%
     arrange(timestamp) %>% 
     summarise(
         session_start_timestamp = first(timestamp),
+        session_finish_timestamp = last(timestamp),
         session_start_date = ymd_hms(first(timestamp)),
+        session_finish_date = ymd_hms(last(timestamp)),
         group = first(group), # eventos de uma mesma sessão são de um mesmo grupo
         results = max(n_results, na.rm = TRUE), # se não houver busca, retorna -Inf
+        click_position = median(result_position, na.rm = TRUE), # se não houver busca, retorna -Inf
         num_clicks = sum(action == "visitPage"), 
         first_click = ifelse(num_clicks == 0, 
-                             NA_integer_, 
+                             NA_integer_,
                              first(na.omit(result_position))
         )
     ) %>% 

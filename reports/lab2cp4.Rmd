@@ -1,0 +1,203 @@
+---
+title: "Lab 2, CP 4: Análise completa"
+output: html_notebook
+---
+
+```{r setup}
+library(tidyverse)
+library(here)
+library(lubridate)
+theme_set(theme_bw())
+```
+
+```{r ETL}
+buscas = read_csv(here::here("data/search_data.csv"))
+```
+
+
+## Manipulando os dados primeiro
+```{r}
+
+buscas %>% 
+    group_by(group) %>% 
+    summarise(n = n()) %>% 
+    ggplot(aes(x = group, y = n, fill = group, color = group)) +
+    theme(legend.position="none") +
+    geom_col()
+
+buscas %>% 
+    mutate(date = floor_date(session_start_date, unit = "day")) %>% 
+    count(date, group) %>%
+    ggplot(aes(x = date, y = n, fill = "red")) +
+    xlab("Data") +
+    ylab("Contagem") +
+    theme(legend.position="none") +
+    geom_col()
+
+buscas %>% 
+    ggplot(aes(x = "Total de resultados", y = results)) + 
+    geom_boxplot(outlier.shape=NA) +
+    scale_y_log10()
+
+buscas %>% 
+    ggplot(aes(x = "Posição da página", y = click_position)) + 
+    geom_boxplot(outlier.shape=NA) +
+    scale_y_log10()
+
+buscas %>% 
+    ggplot(aes(x = "Resultados", y = results)) + 
+    geom_boxplot(outlier.shape=NA) +
+    scale_y_log10()
+```
+
+# Pergunta 1
+### What is our daily overall clickthrough rate? How does it vary between the groups?
+```{r}
+buscas %>%
+    mutate(date = floor_date(session_start_date, unit = "day")) %>% 
+    count(date) %>%
+    ggplot(aes(x = date, y = n)) +
+    xlab("Data") +
+    ylab("Contagem") +
+    geom_line()+ 
+    geom_point()
+
+buscas %>%
+    mutate(date = floor_date(session_start_date, unit = "day")) %>% 
+    count(date, group) %>%
+    ggplot(aes(x = date, y = n, fill = group, color = group)) +
+    xlab("Data") +
+    ylab("Contagem") +
+    geom_line()+ 
+    geom_point()
+
+min(buscas$session_start_date)
+max(buscas$session_start_date)
+```
+# Pergunta 2
+### Which results do people tend to try first?
+```{r}
+summary(buscas$click_position)
+
+buscas %>% 
+    ggplot(aes(x = click_position)) + 
+    scale_x_log10() +
+    stat_ecdf()
+
+statmod <- function(x) { 
+z <- table(as.vector(x)) 
+names(z)[z == max(z)] 
+} 
+
+statmod(buscas$click_position)
+```
+
+### How does it change day-to-day?
+
+```{r}
+buscas %>%
+    mutate(date = floor_date(session_start_date, unit = "day")) %>%
+    mutate(moda = statmod(click_position)) %>%
+    count(date, moda) %>%
+    ggplot(aes(x = date, y = moda)) +
+    xlab("Data") +
+    ylab("Moda") +
+    geom_line() + 
+    geom_point()
+```
+
+
+#Pergunta 3
+### What is our daily overall zero results rate? How does it vary between the groups?
+
+```{r}
+buscas %>% # a taxa de resultados = 0 em cima dos resultados = 0 
+    filter(buscas$results == 0) %>%
+    mutate(date = floor_date(session_start_date, unit = "day")) %>% 
+    ggplot(aes(date, fill="red")) +
+    geom_bar(aes(y = (..count..)/sum(..count..))) +
+    geom_text(aes( label = scales::percent(..prop..),y= ..prop.. ), stat= "count", vjust = -.3) +
+    scale_y_continuous(labels=scales::percent) +
+    theme(legend.position="none") +
+    ylab("relative frequencies")
+
+buscas %>% 
+    filter(buscas$results == 0) %>%
+    mutate(date = floor_date(session_start_date, unit = "day")) %>% 
+    ggplot(aes(date, fill=group, group = group, color=group)) +
+    geom_bar(aes(y = (..count..)/sum(..count..))) +
+    scale_y_continuous(labels=scales::percent) +
+    facet_grid(~group) +
+    theme(legend.position="none") +
+    ylab("relative frequencies")
+
+
+buscas %>%
+    filter(buscas$results == 0) %>%
+    mutate(date = floor_date(session_start_date, unit = "day")) %>% 
+    ggplot(aes(date, fill="red")) +
+    geom_bar(aes(y = (..count..)/sum(..count..))) +
+    geom_text(aes( label = scales::percent(..prop..), y= ..prop.. ), stat= "count", vjust = -.3) +
+    scale_y_continuous(labels=scales::percent) +
+    theme(legend.position="none") +
+    ylab("relative frequencies")
+
+
+buscas %>%
+    filter(buscas$results == 0) %>%
+    mutate(date = floor_date(session_start_date, unit = "day")) %>% 
+    count(date) %>% 
+    mutate(perc = sprintf("%0.2f",(n / nrow(buscas)) * 100)) %>%
+    ggplot(aes(x = date, y = perc, fill="red")) + 
+    theme(legend.position="none") +
+    geom_bar(stat = "identity") +
+    geom_text(aes(label=perc), position=position_dodge(width=0.9), vjust=-0.25)
+
+```
+
+
+```{r}
+
+buscas %>% 
+    mutate(date = floor_date(session_start_date, unit = "day")) %>% 
+    mutate(resultCount = ifelse(buscas$results > 0, "Um ou mais resultados", "Zero resultados")) %>%
+    count(date, resultCount) %>%
+    ggplot(aes(x = date, y = n, fill = resultCount)) +
+    xlab("Data") +
+    ylab("Contagem") +
+    geom_col() +
+    geom_text(aes(label=sprintf("%0.2f%%",(n/nrow(buscas)) * 100)), position=position_dodge(width=0.5), vjust=-0.25) 
+
+buscas %>% 
+    mutate(date = floor_date(session_start_date, unit = "day")) %>% 
+    mutate(resultCount = ifelse(buscas$results > 0, "Um ou mais resultados", "Zero resultados")) %>%
+    count(date, resultCount, group) %>%
+    ggplot(aes(x = date, y = n, fill = resultCount)) +
+    xlab("Data") +
+    facet_grid(~group) +
+    ylab("Contagem") +
+    geom_col()+
+    geom_text(aes(label=sprintf("%0.2f%%",(n/nrow(buscas)) * 100)), position=position_dodge(width=0.2), vjust=-0.25) 
+
+```
+
+
+#Pergunta 4
+### Let session length be approximately the time between the first event and the last event in a session. Choose a variable from the dataset and describe its relationship to session length. Visualize the relationship.
+```{r}
+
+buscas %>% 
+    mutate(lenght = buscas$session_finish_timestamp - buscas$session_start_timestamp) %>% 
+    ggplot(aes(x = "Tempo", y = lenght)) + 
+    geom_boxplot(outlier.shape=NA) +
+    scale_y_log10()
+
+buscas %>%
+    mutate(lenght = buscas$session_finish_timestamp - buscas$session_start_timestamp) %>% 
+    ggplot(aes(x = group, y = lenght, color = group)) + 
+    scale_y_log10() +
+    geom_jitter(alpha = .3)
+
+summary(filter(mutate(buscas,lenght = buscas$session_finish_timestamp - buscas$session_start_timestamp), group== "a")$lenght)
+summary(filter(mutate(buscas,lenght = buscas$session_finish_timestamp - buscas$session_start_timestamp), group== "b")$lenght)
+```
