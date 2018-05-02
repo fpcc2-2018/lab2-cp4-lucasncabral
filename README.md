@@ -1,6 +1,6 @@
 ﻿# Relatório Final
 
-O relatório final encontra-se em: 
+O relatório final encontra-se em: http://rpubs.com/lucasnc/lab2cp4
 
 # Sessões, buscas e navegação na wikimedia
 
