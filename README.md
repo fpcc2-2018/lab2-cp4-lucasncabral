@@ -1,6 +1,6 @@
 ﻿# Relatório Final
 
-O relatório final encontrasse em: 
+O relatório final encontra-se em: 
 
 # Sessões, buscas e navegação na wikimedia
 
