@@ -1,6 +1,8 @@
 ---
-title: "Lab 2, CP 4: Análise completa"
-output: html_notebook
+title: 'Lab 2, CP 4: AnÃ¡lise completa'
+output:
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup}
@@ -15,7 +17,8 @@ buscas = read_csv(here::here("data/search_data.csv"))
 ```
 
 
-## Manipulando os dados primeiro
+## Manipulação dos dados 
+
 ```{r}
 
 buscas %>% 
@@ -52,6 +55,7 @@ buscas %>%
 
 # Pergunta 1
 ### What is our daily overall clickthrough rate? How does it vary between the groups?
+Para respondermos essa pergunta, utilizaremos duas variaveis do nosso conjunto de dados, são elas: group e session_start_date. Para observamos os dados utilizaremos dois gráficos de linha que representam a quantidade de sessões no total e por grupos:
 ```{r}
 buscas %>%
     mutate(date = floor_date(session_start_date, unit = "day")) %>% 
@@ -74,8 +78,26 @@ buscas %>%
 min(buscas$session_start_date)
 max(buscas$session_start_date)
 ```
+
+As visualizações nos permite perceber que durante os nove dias de dados coletados, a quantidade do grupo A foi superior ao do grupo B. Além disso, podemos observar que os dois grupos apresentam comportamentos semelhantes durante os dias, apesar de que, podemos observar que no ultimo dia os dados foram coletados apenas até as 20 horas, comprometendo assim a comparação nesse dia.
+
+Além disso, podemos perceber através do gráfico de dispersão abaixo uma grande presença de sessões com 0 ou 1 cliques, concentrando grande parte dos pontos na parte inferior do gráfico.
+
+```{r}
+buscas %>% 
+    ggplot(aes(x = group, y = num_clicks)) + 
+    geom_jitter(aes(alpha = .4, width = .2, size = .8, color = group)) +
+    scale_y_log10() +
+  theme(plot.title = element_text(hjust = 0.5), legend.position="none")
+```
+
+
+
 # Pergunta 2
 ### Which results do people tend to try first?
+
+Para responder essa pergunta utilizaremos a variavel click_position, onde podemos observar que tanto para a moda como para a mediana os valores se concentram em 1.
+
 ```{r}
 summary(buscas$click_position)
 
@@ -93,6 +115,7 @@ statmod(buscas$click_position)
 ```
 
 ### How does it change day-to-day?
+Podemos observar através dessa visualização que não a variação durante os dias para essa variavel.
 
 ```{r}
 buscas %>%
@@ -109,52 +132,7 @@ buscas %>%
 
 #Pergunta 3
 ### What is our daily overall zero results rate? How does it vary between the groups?
-
-```{r}
-buscas %>% # a taxa de resultados = 0 em cima dos resultados = 0 
-    filter(buscas$results == 0) %>%
-    mutate(date = floor_date(session_start_date, unit = "day")) %>% 
-    ggplot(aes(date, fill="red")) +
-    geom_bar(aes(y = (..count..)/sum(..count..))) +
-    geom_text(aes( label = scales::percent(..prop..),y= ..prop.. ), stat= "count", vjust = -.3) +
-    scale_y_continuous(labels=scales::percent) +
-    theme(legend.position="none") +
-    ylab("relative frequencies")
-
-buscas %>% 
-    filter(buscas$results == 0) %>%
-    mutate(date = floor_date(session_start_date, unit = "day")) %>% 
-    ggplot(aes(date, fill=group, group = group, color=group)) +
-    geom_bar(aes(y = (..count..)/sum(..count..))) +
-    scale_y_continuous(labels=scales::percent) +
-    facet_grid(~group) +
-    theme(legend.position="none") +
-    ylab("relative frequencies")
-
-
-buscas %>%
-    filter(buscas$results == 0) %>%
-    mutate(date = floor_date(session_start_date, unit = "day")) %>% 
-    ggplot(aes(date, fill="red")) +
-    geom_bar(aes(y = (..count..)/sum(..count..))) +
-    geom_text(aes( label = scales::percent(..prop..), y= ..prop.. ), stat= "count", vjust = -.3) +
-    scale_y_continuous(labels=scales::percent) +
-    theme(legend.position="none") +
-    ylab("relative frequencies")
-
-
-buscas %>%
-    filter(buscas$results == 0) %>%
-    mutate(date = floor_date(session_start_date, unit = "day")) %>% 
-    count(date) %>% 
-    mutate(perc = sprintf("%0.2f",(n / nrow(buscas)) * 100)) %>%
-    ggplot(aes(x = date, y = perc, fill="red")) + 
-    theme(legend.position="none") +
-    geom_bar(stat = "identity") +
-    geom_text(aes(label=perc), position=position_dodge(width=0.9), vjust=-0.25)
-
-```
-
+Em relação a taxa de resultados zero podemos observar uma presença significativa nos dados, conforme o gráfico que compara a porcentagem de sessões por dia que retornaram 0 resultados entre todos os dados.
 
 ```{r}
 
@@ -184,6 +162,8 @@ buscas %>%
 
 #Pergunta 4
 ### Let session length be approximately the time between the first event and the last event in a session. Choose a variable from the dataset and describe its relationship to session length. Visualize the relationship.
+Comparamos o tempo da sessão em cada grupo, e podemos observar que em média o grupo A possui sessões maiores que o grupo B, porem o grupo B possui 75% de seus dados com tempo abaixo de 0.0
+
 ```{r}
 
 buscas %>% 
