@@ -9,48 +9,12 @@ output:
 library(tidyverse)
 library(here)
 library(lubridate)
+library(boot)
 theme_set(theme_bw())
 ```
 
 ```{r ETL}
 buscas = read_csv(here::here("data/search_data.csv"))
-```
-
-
-## Manipulação dos dados 
-
-```{r}
-
-buscas %>% 
-    group_by(group) %>% 
-    summarise(n = n()) %>% 
-    ggplot(aes(x = group, y = n, fill = group, color = group)) +
-    theme(legend.position="none") +
-    geom_col()
-
-buscas %>% 
-    mutate(date = floor_date(session_start_date, unit = "day")) %>% 
-    count(date, group) %>%
-    ggplot(aes(x = date, y = n, fill = "red")) +
-    xlab("Data") +
-    ylab("Contagem") +
-    theme(legend.position="none") +
-    geom_col()
-
-buscas %>% 
-    ggplot(aes(x = "Total de resultados", y = results)) + 
-    geom_boxplot(outlier.shape=NA) +
-    scale_y_log10()
-
-buscas %>% 
-    ggplot(aes(x = "Posição da página", y = click_position)) + 
-    geom_boxplot(outlier.shape=NA) +
-    scale_y_log10()
-
-buscas %>% 
-    ggplot(aes(x = "Resultados", y = results)) + 
-    geom_boxplot(outlier.shape=NA) +
-    scale_y_log10()
 ```
 
 # Pergunta 1
@@ -91,30 +55,73 @@ buscas %>%
   theme(plot.title = element_text(hjust = 0.5), legend.position="none")
 ```
 
+```{r}
+sessoes <- buscas %>%
+    group_by(session_id) %>% 
+    summarise(grupo = first(group),
+              click_position = mean(click_position, na.rm = TRUE),
+              com_clique = sum(num_clicks, na.rm = TRUE) > 0,
+              data = paste(day(first(session_start_date)), month(first(session_start_date)), year(first(session_start_date)), sep = "/"))
+    
+taxa_de_cliques <- function(value, i){
+    return(sum(value[i])/length(value))
+}
 
+cliques_por_dia <- sessoes %>% 
+    group_by(data) %>% 
+    summarise(boot = list(boot(com_clique, taxa_de_cliques, R = 1000)),
+              ci = list(boot.ci(boot[[1]], conf = 0.95, type = "basic")),
+              lim_inf = ci[[1]][[4]][4],
+              lim_sup = ci[[1]][[4]][5]) %>% 
+    select(-c(boot, ci))
+
+cliques_por_dia %>% 
+    ggplot(aes(x = data, ymin = lim_inf, ymax = lim_sup)) + 
+    geom_errorbar(width = .2) +
+    labs(x = "Dia", y = "Proporção")
+```
+
+Podemos observar através desse gráfico que a taxa diária de cliques é baixa, como ja foi observado ateriormente e que com 95% de confiança, possuem valores entre 0.37 e 0.41.
+
+```{r}
+cliques_por_dia_grupos <- sessoes %>% 
+    group_by(data, grupo) %>% 
+    summarise(boot = list(boot(com_clique, taxa_de_cliques, R = 1000)),
+              ci = list(boot.ci(boot[[1]], conf = 0.95, type = "basic")),
+              lim_inf = ci[[1]][[4]][4],
+              lim_sup = ci[[1]][[4]][5]) %>% 
+    select(-c(boot, ci))
+
+cliques_por_dia_grupos %>% 
+    ggplot(aes(x = data, ymin = lim_inf, ymax = lim_sup, color = grupo)) + 
+    geom_errorbar(width = .2) +
+    labs(x = "Dia", y = "Proporção")
+```
+
+Com 95% de confiança, podemos dizer que as sessões do grupo B apresentaram intervalos com valores muito abaixo daquelas do grupo A.
+
+## Lab3 - CP1 - Pergunta 2
+
+Em vez de comparar o grupo A com o grupo B (um teste A/B), você compara metade das sessões do grupo A (escolhida aleatoriamente) com outra metade das sessões do mesmo grupo (um teste A/A).
+
+```{r}
+cliques_por_dia_mesmo_grupo <- sessoes %>% 
+    filter(grupo == "a") %>%
+    group_by(data, grupo) %>% 
+    summarise(boot = list(boot(com_clique, taxa_de_cliques, R = 1000)),
+              ci = list(boot.ci(boot[[1]], conf = 0.95, type = "basic")),
+              lim_inf = ci[[1]][[4]][4],
+              lim_sup = ci[[1]][[4]][5]) %>% 
+    select(-c(boot, ci))
+
+cliques_por_dia_mesmo_grupo %>% 
+    ggplot(aes(x = data, ymin = lim_inf, ymax = lim_sup, color = grupo)) + 
+    geom_errorbar(width = .2) +
+    labs(x = "Dia", y = "Proporção")
+```
 
 # Pergunta 2
 ### Which results do people tend to try first?
-
-Para responder essa pergunta utilizaremos a variavel click_position, onde podemos observar que tanto para a moda como para a mediana os valores se concentram em 1.
-
-```{r}
-summary(buscas$click_position)
-
-buscas %>% 
-    ggplot(aes(x = click_position)) + 
-    scale_x_log10() +
-    stat_ecdf()
-
-statmod <- function(x) { 
-z <- table(as.vector(x)) 
-names(z)[z == max(z)] 
-} 
-
-statmod(buscas$click_position)
-```
-
-### How does it change day-to-day?
 Podemos observar através dessa visualização que não a variação durante os dias para essa variavel.
 
 ```{r}
@@ -128,8 +135,8 @@ buscas %>%
     geom_line() + 
     geom_point()
 ```
-
-
+    
+    
 #Pergunta 3
 ### What is our daily overall zero results rate? How does it vary between the groups?
 Em relação a taxa de resultados zero podemos observar uma presença significativa nos dados, conforme o gráfico que compara a porcentagem de sessões por dia que retornaram 0 resultados entre todos os dados.
@@ -157,27 +164,4 @@ buscas %>%
     geom_col()+
     geom_text(aes(label=sprintf("%0.2f%%",(n/nrow(buscas)) * 100)), position=position_dodge(width=0.2), vjust=-0.25) 
 
-```
-
-
-#Pergunta 4
-### Let session length be approximately the time between the first event and the last event in a session. Choose a variable from the dataset and describe its relationship to session length. Visualize the relationship.
-Comparamos o tempo da sessão em cada grupo, e podemos observar que em média o grupo A possui sessões maiores que o grupo B, porem o grupo B possui 75% de seus dados com tempo abaixo de 0.0
-
-```{r}
-
-buscas %>% 
-    mutate(lenght = buscas$session_finish_timestamp - buscas$session_start_timestamp) %>% 
-    ggplot(aes(x = "Tempo", y = lenght)) + 
-    geom_boxplot(outlier.shape=NA) +
-    scale_y_log10()
-
-buscas %>%
-    mutate(lenght = buscas$session_finish_timestamp - buscas$session_start_timestamp) %>% 
-    ggplot(aes(x = group, y = lenght, color = group)) + 
-    scale_y_log10() +
-    geom_jitter(alpha = .3)
-
-summary(filter(mutate(buscas,lenght = buscas$session_finish_timestamp - buscas$session_start_timestamp), group== "a")$lenght)
-summary(filter(mutate(buscas,lenght = buscas$session_finish_timestamp - buscas$session_start_timestamp), group== "b")$lenght)
 ```
